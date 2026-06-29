@@ -1,0 +1,286 @@
+<!DOCTYPE html><html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LEGO 60347 — Пошаговая инструкция</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#e8eaf0;padding:0;max-width:500px;margin:0 auto;min-height:100vh}
+/* Шапка */
+.header{background:#fff;padding:10px 14px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 6px rgba(0,0,0,0.08);position:sticky;top:0;z-index:10}
+.header h1{font-size:15px;color:#2E7D32;flex:1}
+.header .badge{background:#2E7D32;color:#fff;padding:4px 10px;border-radius:12px;font-size:12px;font-weight:700}
+
+/* Шаг */
+.step{padding:12px 14px}
+.step-num{font-size:22px;font-weight:900;color:#2E7D32;margin-bottom:4px}
+.step-desc{font-size:14px;color:#555;margin-bottom:12px}
+
+/* Панель деталей */
+.parts-needed{background:#fff;border-radius:10px;padding:10px 14px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,0.06)}
+.parts-needed .label{font-size:11px;color:#999;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.parts-list{display:flex;flex-wrap:wrap;gap:6px}
+
+.part-item{display:flex;align-items:center;gap:5px;background:#f5f5f5;padding:3px 8px;border-radius:14px;font-size:12px;font-weight:600}
+.part-color{width:14px;height:14px;border-radius:3px;border:1px solid rgba(0,0,0,0.2);flex-shrink:0}
+.part-item .qty{color:#2E7D32;font-weight:700;margin-left:2px}
+
+/* Визуализация */
+.building-area{background:#fff;border-radius:10px;padding:14px;min-height:200px;box-shadow:0 1px 4px rgba(0,0,0,0.06);position:relative;overflow:hidden}
+.building-area .label{font-size:11px;color:#999;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.canvas-wrap{position:relative;width:100%;min-height:180px}
+
+/* SVG LEGO вид сверху */
+svg.lego-view{display:block;width:100%;height:auto}
+.lego-grid-line{stroke:#e0e0e0;stroke-width:0.5}
+.lego-stud{stroke:rgba(0,0,0,0.15);stroke-width:0.8}
+.lego-outline{stroke:rgba(0,0,0,0.3);stroke-width:1.5}
+.lego-new{stroke:#FF9800;stroke-width:2.5;filter:drop-shadow(0 0 4px #FFD700)}
+
+/* Кнопки */
+.controls{display:flex;gap:8px;padding:10px 14px;position:sticky;bottom:0;background:#fff;box-shadow:0 -2px 6px rgba(0,0,0,0.08)}
+.controls button{flex:1;background:#2E7D32;color:#fff;border:none;padding:12px;border-radius:22px;font-size:14px;font-weight:700;cursor:pointer}
+.controls button:active{background:#1B5E20;transform:scale(0.96)}
+.controls button:disabled{background:#bbb}
+
+/* Совет */
+.tip{background:#FFF8E1;margin:8px 14px;padding:8px 12px;border-radius:8px;font-size:12px;color:#F57F17}
+</style>
+</head>
+<body><div class="header">
+  <h1>🧱 LEGO 60347 — Мини-кафе</h1>
+  <span class="badge" id="stepLabel">Шаг 1/48</span>
+</div><div class="step">
+  <div class="step-num" id="stepTitle">ШАГ 1</div>
+  <div class="step-desc" id="stepDesc">Тёмно-серая плита 16×16 — основание</div>
+</div><div class="parts-needed">
+  <div class="label">📦 Детали для этого шага</div>
+  <div class="parts-list" id="partsList"></div>
+</div><div class="building-area">
+  <div class="label">🔍 Что строим (вид сверху)</div>
+  <div class="canvas-wrap" id="canvasWrap">
+    <svg class="lego-view" id="legoSvg" viewBox="0 0 400 300"></svg>
+  </div>
+</div><div class="tip" id="tipArea">💡 Новая деталь выделена оранжевым контуром</div><div class="controls">
+  <button id="btnPrev" onclick="prevStep()">◀ Назад</button>
+  <button id="btnNext" onclick="nextStep()">Вперёд ▶</button>
+</div><script>
+// ============ ДАННЫЕ ВСЕХ ШАГОВ ============
+const COL = {
+  white:'#ffffff',red:'#c91a09',green:'#4caf50',lime:'#cddc39',orange:'#ff9800',
+  yellow:'#ffeb3b',dkGray:'#616161',ltGray:'#bdbdbd',black:'#212121',
+  transBlue:'#81d4fa',brown:'#795548',tan:'#d7ccc8',pink:'#f48fb1'
+};
+
+// Формат: {desc, parts:[{name,color,qty}], svg: (svg,isNew)=>{} }
+const steps = [];
+
+// Масштаб и смещение для SVG
+const S = 22;
+const OX = 200, OY = 150;
+
+function r(x,y,w,h,color,isNew=false){
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="2" fill="${color}" class="${isNew?'lego-new':'lego-outline'}"/>`;
+}
+function c(cx,cy,r,color,isNew=false){
+  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}" class="${isNew?'lego-new':'lego-outline'}"/>`;
+}
+function stud(x,y,color){
+  return `<circle cx="${x}" cy="${y}" r="4" fill="${color}" class="lego-stud"/>`;
+}
+function studs(x,y,w,h,color){
+  let out = '';
+  for(let i=0;i<w;i++)for(let j=0;j<h;j++)out+=stud(x+i*S,y+j*S,color);
+  return out;
+}
+function brick(x,y,w,h,color,isNew=false){
+  return r(x*S+OX-w*S/2,y*S+OY-h*S/2,w*S,h*S,color,isNew)+studs(x*S+OX-w*S/2+S/2,y*S+OY-h*S/2+S/2,w,h,color);
+}
+function plate(x,y,w,h,color,isNew=false){
+  return r(x*S+OX-w*S/2,y*S+OY-h*S/2,w*S,h*S,color,isNew)+studs(x*S+OX-w*S/2+S/2,y*S+OY-h*S/2+S/2,w,h,color);
+}
+function tile(x,y,w,h,color,isNew=false){
+  return r(x*S+OX-w*S/2,y*S+OY-h*S/2,w*S,h*S,color,isNew);
+}
+function panel(x,y,w,h,color,isNew=false){
+  return r(x*S+OX-w*S/2,y*S+OY-h*S/2,w*S,h*S,color,isNew);
+}
+function slope(x,y,w,h,color,isNew=false){
+  const x1=x*S+OX-w*S/2,y1=y*S+OY-h*S/2;
+  return `<polygon points="${x1},${y1+h*S} ${x1+w*S},${y1+h*S} ${x1+w*S*0.7},${y1} ${x1+w*S*0.3},${y1}" fill="${color}" class="${isNew?'lego-new':'lego-outline'}"/>`;
+}
+function arch(x,y,w,h,color,isNew=false){
+  const x1=x*S+OX-w*S/2,y1=y*S+OY-h*S/2;
+  return `<path d="M${x1},${y1+h*S} L${x1},${y1+h*S*0.3} A${w*S/2},${h*S*0.3} 0 0 1 ${x1+w*S},${y1+h*S*0.3} L${x1+w*S},${y1+h*S} Z" fill="${color}" class="${isNew?'lego-new':'lego-outline'}"/>`;
+}
+
+// ============ ШАГИ ============
+let isNew = false;
+
+// Шаг 1
+steps.push({
+  desc:'Тёмно-серая плита 16×16 (69958) — основание',
+  parts:[{name:'Плита 16×16',color:COL.dkGray,qty:1,id:'69958'}],
+  svg:()=>plate(0,0,16,16,COL.dkGray,true),
+});
+// Шаг 2
+steps.push({
+  desc:'Светло-серая плита 16×16 (91405) — терраса со сдвигом',
+  parts:[{name:'Плита 16×16',color:COL.ltGray,qty:1,id:'91405'}],
+  svg:()=>plate(0,0,16,16,COL.dkGray)+plate(0,-2,16,16,COL.ltGray,true),
+});
+// Шаг 3
+steps.push({
+  desc:'2 плитки 1×6 (6636) — укрепление снизу спереди',
+  parts:[{name:'Плитка 1×6',color:COL.dkGray,qty:2,id:'6636'}],
+  svg:()=>plate(0,0,16,16,COL.dkGray)+plate(0,-2,16,16,COL.ltGray)+tile(-5,-5,6,1,COL.dkGray,true)+tile(5,-5,6,1,COL.dkGray,true),
+});
+// Шаг 4
+steps.push({
+  desc:'Белый кирпич 1×4×3 (49311) — задняя стена, левый край',
+  parts:[{name:'Кирпич 1×4×3',color:COL.white,qty:1,id:'49311'}],
+  svg:()=>plate(0,0,16,16,COL.dkGray)+plate(0,-2,16,16,COL.ltGray)+tile(-5,-5,6,1,COL.dkGray)+tile(5,-5,6,1,COL.dkGray)+brick(-6,3,4,1,COL.white,true),
+});
+// Шаг 5
+steps.push({
+  desc:'Белая панель 1×2×3 (35340) — задняя стена',
+  parts:[{name:'Панель 1×2×3',color:COL.white,qty:1,id:'35340'}],
+  svg:()=>plate(0,0,16,16,COL.dkGray)+plate(0,-2,16,16,COL.ltGray)+tile(-5,-5,6,1,COL.dkGray)+tile(5,-5,6,1,COL.dkGray)+brick(-6,3,4,1,COL.white)+panel(-3,3,2,1,COL.white,true),
+});
+// Шаг 6
+steps.push({
+  desc:'Белый кирпич 1×4×3 (49311) — центр слева',
+  parts:[{name:'Кирпич 1×4×3',color:COL.white,qty:1,id:'49311'}],
+  svg:()=>plate(0,0,16,16,COL.dkGray)+plate(0,-2,16,16,COL.ltGray)+tile(-5,-5,6,1,COL.dkGray)+tile(5,-5,6,1,COL.dkGray)+brick(-6,3,4,1,COL.white)+panel(-3,3,2,1,COL.white)+brick(0,3,4,1,COL.white,true),
+});
+// Шаг 7
+steps.push({
+  desc:'Белая рама 1×6×6 (42205) + голубое окно',
+  parts:[{name:'Рама 1×6×6',color:COL.white,qty:1,id:'42205'},{name:'Окно (прозр)',color:COL.transBlue,qty:1}],
+  svg:()=>plate(0,0,16,16,COL.dkGray)+plate(0,-2,16,16,COL.ltGray)+tile(-5,-5,6,1,COL.dkGray)+tile(5,-5,6,1,COL.dkGray)+brick(-6,3,4,1,COL.white)+panel(-3,3,2,1,COL.white)+brick(0,3,4,1,COL.white)+brick(3,3,6,1,COL.white,true)+brick(3,2.5,5,0.7,COL.transBlue,true),
+});
+// Шаг 8
+steps.push({
+  desc:'Белый кирпич 1×4×3 (49311) — центр справа',
+  parts:[{name:'Кирпич 1×4×3',color:COL.white,qty:1,id:'49311'}],
+  svg:()=>plate(0,0,16,16,COL.dkGray)+plate(0,-2,16,16,COL.ltGray)+tile(-5,-5,6,1,COL.dkGray)+tile(5,-5,6,1,COL.dkGray)+brick(-6,3,4,1,COL.white)+panel(-3,3,2,1,COL.white)+brick(0,3,4,1,COL.white)+brick(3,3,6,1,COL.white)+brick(3,2.5,5,0.7,COL.transBlue)+brick(6.5,3,4,1,COL.white,true),
+});
+// Шаг 9
+steps.push({
+  desc:'Белый кирпич 1×4×3 + панель — правый край',
+  parts:[{name:'Кирпич 1×4×3',color:COL.white,qty:1,id:'49311'},{name:'Панель 1×2×3',color:COL.white,qty:1,id:'35340'}],
+  svg:()=>plate(0,0,16,16,COL.dkGray)+plate(0,-2,16,16,COL.ltGray)+tile(-5,-5,6,1,COL.dkGray)+tile(5,-5,6,1,COL.dkGray)+brick(-6,3,4,1,COL.white)+panel(-3,3,2,1,COL.white)+brick(0,3,4,1,COL.white)+brick(3,3,6,1,COL.white)+brick(3,2.5,5,0.7,COL.transBlue)+brick(6.5,3,4,1,COL.white)+brick(9,3,4,1,COL.white,true)+panel(7,3,2,1,COL.white,true),
+});
+// Шаг 10
+steps.push({
+  desc:'3 белые плиты 2×8 (3034) — скрепляем стену сверху',
+  parts:[{name:'Плита 2×8',color:COL.white,qty:3,id:'3034'}],
+  svg:()=>plate(0,0,16,16,COL.dkGray)+plate(0,-2,16,16,COL.ltGray)+tile(-5,-5,6,1,COL.dkGray)+tile(5,-5,6,1,COL.dkGray)+brick(-6,3,4,1,COL.white)+panel(-3,3,2,1,COL.white)+brick(0,3,4,1,COL.white)+brick(3,3,6,1,COL.white)+brick(3,2.5,5,0.7,COL.transBlue)+brick(6.5,3,4,1,COL.white)+brick(9,3,4,1,COL.white)+panel(7,3,2,1,COL.white)+plate(-6,2.6,8,2,COL.white,true)+plate(0,2.6,8,2,COL.white,true)+plate(6,2.6,8,2,COL.white,true),
+});
+// Шаг 11
+steps.push({
+  desc:'Белый кирпич 2×10 (3006) — левая стена',
+  parts:[{name:'Кирпич 2×10',color:COL.white,qty:1,id:'3006'}],
+  svg:()=>{let s=plate(0,0,16,16,COL.dkGray)+plate(0,-2,16,16,COL.ltGray);s+=brick(-8,0,10,2,COL.white,true);return s;},
+});
+// Шаг 12
+steps.push({
+  desc:'Белый кирпич 1×12 (6112) — левая стена сверху',
+  parts:[{name:'Кирпич 1×12',color:COL.white,qty:1,id:'6112'}],
+  svg:()=>{let s=plate(0,0,16,16,COL.dkGray)+plate(0,-2,16,16,COL.ltGray);s+=brick(-8,0,10,2,COL.white);s+=brick(-7,-1,12,1,COL.white,true);return s;},
+});
+// Шаг 13
+steps.push({
+  desc:'Белая панель 1×2×3 (35340) — левая стена спереди',
+  parts:[{name:'Панель 1×2×3',color:COL.white,qty:1,id:'35340'}],
+  svg:()=>{let s=plate(0,0,16,16,COL.dkGray)+plate(0,-2,16,16,COL.ltGray);s+=brick(-8,0,10,2,COL.white)+brick(-7,-1,12,1,COL.white);s+=panel(-9,4,2,1,COL.white,true);return s;},
+});
+// Шаг 14
+steps.push({
+  desc:'Белый кирпич 2×10 (3006) — правая стена',
+  parts:[{name:'Кирпич 2×10',color:COL.white,qty:1,id:'3006'}],
+  svg:()=>{let s=plate(0,0,16,16,COL.dkGray)+plate(0,-2,16,16,COL.ltGray);s+=brick(-8,0,10,2,COL.white)+brick(-7,-1,12,1,COL.white)+panel(-9,4,2,1,COL.white);s+=brick(8,0,10,2,COL.white,true);return s;},
+});
+// Шаг 15
+steps.push({
+  desc:'Белый кирпич 1×12 (6112) — правая стена сверху',
+  parts:[{name:'Кирпич 1×12',color:COL.white,qty:1,id:'6112'}],
+  svg:()=>{let s=plate(0,0,16,16,COL.dkGray)+plate(0,-2,16,16,COL.ltGray);s+=brick(-8,0,10,2,COL.white)+brick(-7,-1,12,1,COL.white)+panel(-9,4,2,1,COL.white)+brick(8,0,10,2,COL.white);s+=brick(7,-1,12,1,COL.white,true);return s;},
+});
+// Шаг 16
+steps.push({
+  desc:'Белая панель 1×2×3 (35340) — правая стена спереди',
+  parts:[{name:'Панель 1×2×3',color:COL.white,qty:1,id:'35340'}],
+  svg:()=>{let s=plate(0,0,16,16,COL.dkGray)+plate(0,-2,16,16,COL.ltGray);s+=brick(-8,0,10,2,COL.white)+brick(-7,-1,12,1,COL.white)+panel(-9,4,2,1,COL.white)+brick(8,0,10,2,COL.white)+brick(7,-1,12,1,COL.white);s+=panel(9,4,2,1,COL.white,true);return s;},
+});
+// Шаг 17
+steps.push({
+  desc:'2 белые плиты 1×4 (3710) — скрепляем углы',
+  parts:[{name:'Плита 1×4',color:COL.white,qty:2,id:'3710'}],
+  svg:()=>{let s=plate(0,0,16,16,COL.dkGray)+plate(0,-2,16,16,COL.ltGray);s+=brick(-8,0,10,2,COL.white)+brick(-7,-1,12,1,COL.white)+panel(-9,4,2,1,COL.white)+brick(8,0,10,2,COL.white)+brick(7,-1,12,1,COL.white)+panel(9,4,2,1,COL.white);s+=plate(-7,2.2,4,1,COL.white,true)+plate(7,2.2,4,1,COL.white,true);return s;},
+});
+
+// Шаг 18-21 — прилавок
+for(let i=0;i<4;i++){
+  steps.push({
+    desc:`Зелёный кирпич 2×4 (3001) — прилавок (${i+1}/4)`,
+    parts:[{name:'Кирпич 2×4',color:COL.green,qty:1,id:'3001'}],
+    svg:(idx=>{return()=>{let s='';for(let j=0;j<=idx;j++)s+=brick(-4+j*2.5,1.5,4,2,COL.green,j===idx);return s;}})(i),
+  });
+}
+// Шаг 22
+steps.push({
+  desc:'2 оранжевых кирпича 2×4 (3001) — цветной акцент',
+  parts:[{name:'Кирпич 2×4',color:COL.orange,qty:2,id:'3001'}],
+  svg:()=>{let s='';for(let j=0;j<4;j++)s+=brick(-4+j*2.5,1.5,4,2,COL.green);s+=brick(-1.5,0.5,4,2,COL.orange,true)+brick(1.5,0.5,4,2,COL.orange,true);return s;},
+});
+// Шаг 23
+steps.push({
+  desc:'2 зелёных держателя 1×2×3 (3245) — по бокам',
+  parts:[{name:'Держатель 1×2×3',color:COL.green,qty:2,id:'3245'}],
+  svg:()=>{let s='';for(let j=0;j<4;j++)s+=brick(-4+j*2.5,1.5,4,2,COL.green);s+=brick(-1.5,0.5,4,2,COL.orange)+brick(1.5,0.5,4,2,COL.orange);s+=brick(-6,1.5,1,2,COL.green,true)+brick(6,1.5,1,2,COL.green,true);return s;},
+});
+// Шаг 24-25 — витрина
+steps.push({
+  desc:'Голубая панель 1×6×5 (59349) — витрина слева',
+  parts:[{name:'Панель 1×6×5',color:COL.transBlue,qty:1,id:'59349'}],
+  svg:()=>{let s='';for(let j=0;j<4;j++)s+=brick(-4+j*2.5,1.5,4,2,COL.green);s+=brick(-1.5,0.5,4,2,COL.orange)+brick(1.5,0.5,4,2,COL.orange);s+=brick(-6,1.5,1,2,COL.green)+brick(6,1.5,1,2,COL.green);s+=panel(-1.5,0.5,6,1,COL.transBlue,true);return s;},
+});
+steps.push({
+  desc:'Ещё 2 голубые панели — спереди справа и сзади',
+  parts:[{name:'Панель 1×6×5',color:COL.transBlue,qty:2,id:'59349'}],
+  svg:()=>{let s='';for(let j=0;j<4;j++)s+=brick(-4+j*2.5,1.5,4,2,COL.green);s+=brick(-1.5,0.5,4,2,COL.orange)+brick(1.5,0.5,4,2,COL.orange);s+=brick(-6,1.5,1,2,COL.green)+brick(6,1.5,1,2,COL.green);s+=panel(-1.5,0.5,6,1,COL.transBlue)+panel(1.5,0.5,6,1,COL.transBlue,true)+panel(0,-0.5,6,1,COL.transBlue,true);return s;},
+});
+// Шаг 26-28 — продукты
+steps.push({
+  desc:'Продукты: яблоки, бананы, круассаны (внутри)',
+  parts:[{name:'Яблоко красное',color:COL.red,qty:2},{name:'Яблоко зелёное',color:COL.green,qty:1},{name:'Банан',color:COL.yellow,qty:2}],
+  svg:()=>{let s='';for(let j=0;j<4;j++)s+=brick(-4+j*2.5,1.5,4,2,COL.green);s+=brick(-1.5,0.5,4,2,COL.orange)+brick(1.5,0.5,4,2,COL.orange);s+=brick(-6,1.5,1,2,COL.green)+brick(6,1.5,1,2,COL.green);s+=panel(-1.5,0.5,6,1,COL.transBlue)+panel(1.5,0.5,6,1,COL.transBlue)+panel(0,-0.5,6,1,COL.transBlue);const bx=-2*S+OX,by=0.5*S+OY;s+=`<circle cx="${bx}" cy="${by}" r="5" fill="${COL.red}" class="lego-new"/><circle cx="${bx+10}" cy="${by}" r="5" fill="${COL.red}" class="lego-new"/><circle cx="${bx+20}" cy="${by}" r="4" fill="${COL.green}" class="lego-new"/><ellipse cx="${bx+32}" cy="${by}" rx="7" ry="4" fill="${COL.yellow}" class="lego-new"/><ellipse cx="${bx+44}" cy="${by}" rx="7" ry="4" fill="${COL.yellow}" class="lego-new"/>`;return s;},
+});
+steps.push({
+  desc:'Продукты: багеты, морковки',
+  parts:[{name:'Багет',color:COL.brown,qty:1},{name:'Багет',color:COL.tan,qty:1},{name:'Морковка',color:COL.orange,qty:2}],
+  svg:()=>{let s='';for(let j=0;j<4;j++)s+=brick(-4+j*2.5,1.5,4,2,COL.green);s+=brick(-1.5,0.5,4,2,COL.orange)+brick(1.5,0.5,4,2,COL.orange);s+=brick(-6,1.5,1,2,COL.green)+brick(6,1.5,1,2,COL.green);s+=panel(-1.5,0.5,6,1,COL.transBlue)+panel(1.5,0.5,6,1,COL.transBlue)+panel(0,-0.5,6,1,COL.transBlue);const bx=0.5*S+OX,by=0.5*S+OY;s+=`<rect x="${bx}" y="${by-2}" width="14" height="4" rx="2" fill="${COL.brown}" class="lego-new"/><rect x="${bx+16}" y="${by-2}" width="14" height="4" rx="2" fill="${COL.tan}" class="lego-new"/><rect x="${bx+34}" y="${by-4}" width="4" height="8" rx="1" fill="${COL.orange}" class="lego-new"/><rect x="${bx+42}" y="${by-4}" width="4" height="8" rx="1" fill="${COL.orange}" class="lego-new"/>`;return s;},
+});
+steps.push({
+  desc:'Продукты: тыквы, рыбы',
+  parts:[{name:'Тыква',color:COL.orange,qty:2},{name:'Рыба',color:COL.ltGray,qty:2}],
+  svg:()=>{let s='';for(let j=0;j<4;j++)s+=brick(-4+j*2.5,1.5,4,2,COL.green);s+=brick(-1.5,0.5,4,2,COL.orange)+brick(1.5,0.5,4,2,COL.orange);s+=brick(-6,1.5,1,2,COL.green)+brick(6,1.5,1,2,COL.green);s+=panel(-1.5,0.5,6,1,COL.transBlue)+panel(1.5,0.5,6,1,COL.transBlue)+panel(0,-0.5,6,1,COL.transBlue);const bx=3*S+OX,by=0.5*S+OY;s+=`<circle cx="${bx}" cy="${by}" r="6" fill="${COL.orange}" class="lego-new"/><circle cx="${bx+14}" cy="${by}" r="6" fill="${COL.orange}" class="lego-new"/><ellipse cx="${bx+30}" cy="${by}" rx="8" ry="3" fill="${COL.ltGray}" class="lego-new"/><ellipse cx="${bx+44}" cy="${by}" rx="8" ry="3" fill="${COL.ltGray}" class="lego-new"/>`;return s;},
+});
+// Шаг 29 — столешница
+steps.push({
+  desc:'Светло-серая плита 8×16 (92438) — столешница',
+  parts:[{name:'Плита 8×16',color:COL.ltGray,qty:1,id:'92438'}],
+  svg:()=>{let s='';for(let j=0;j<4;j++)s+=brick(-4+j*2.5,1.5,4,2,COL.green);s+=brick(-1.5,0.5,4,2,COL.orange)+brick(1.5,0.5,4,2,COL.orange);s+=plate(0,0.8,16,8,COL.ltGray,true);return s;},
+});
+// Шаг 30
+steps.push({
+  desc:'Касса (белый скат) + 2 зелёные корзины (61780)',
+  parts:[{name:'Скат 2×2 (касса)',color:COL.white,qty:1},{name:'Корзина',color:COL.green,qty:2,id:'61780'}],
+  svg:()=>{let s='';for(let j=0;j<4;j++)s+=brick(-4+j*2.5,1.5,4,2,COL.green);s+=brick(-1.5,0.5,4,2,COL.orange)+brick(1.5,0.5,4,2,COL.orange);s+=plate(0,0.8,16,8,COL.ltGray);s+=slope(-4,0.3,2,1,COL.white,true)+brick(-1.5,0.3,2,2,COL.green,true)+brick(1.5,0.3,2,2,COL.green,true);return s;},
+});
+// Шаг 31
+steps.push({
+  desc:'3 бутылки + монитор (белый тайл)',
+  parts:[{name:'Бутылка',color:COL.transBlue,qty:3},{name:'Тайл 2×2',color:COL.transBlue,qty:1}],
+  svg:()=>{let s='';for(let j=0;j<4;j
