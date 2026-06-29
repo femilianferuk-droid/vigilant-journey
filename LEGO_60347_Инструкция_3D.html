@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>LEGO 60347 — Пошаговая 3D инструкция</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#e8eaf0;overflow:hidden;height:100vh;user-select:none;-webkit-user-select:none;touch-action:manipulation}
+
+#scene{position:fixed;top:0;left:0;width:100%;height:100%;perspective:1200px}
+#world{position:absolute;top:50%;left:50%;transform-style:preserve-3d;transition:transform 0.6s cubic-bezier(0.2,0.8,0.3,1)}
+#world.instant{transition:none}
+
+/* Детали */
+.part{position:absolute;transform-style:preserve-3d;cursor:default}
+.face{position:absolute;border:1px solid rgba(0,0,0,0.15)}
+.stud{position:absolute;border-radius:50%;border:1px solid rgba(0,0,0,0.12)}
+
+/* Верхняя панель */
+#top-bar{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(255,255,255,0.93);padding:6px 10px;display:flex;align-items:center;gap:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1)}
+#top-bar h1{font-size:14px;color:#2E7D32;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#top-bar .badge{background:#2E7D32;color:#fff;padding:3px 8px;border-radius:10px;font-size:12px;font-weight:700}
+
+/* Нижняя панель */
+#bottom-bar{position:fixed;bottom:0;left:0;right:0;z-index:100;background:rgba(255,255,255,0.93);padding:8px;display:flex;align-items:center;gap:8px;box-shadow:0 -2px 8px rgba(0,0,0,0.1);justify-content:center}
+#bottom-bar button{background:#2E7D32;color:#fff;border:none;padding:10px 16px;border-radius:20px;font-size:13px;font-weight:700;cursor:pointer;min-width:60px;transition:0.1s}
+#bottom-bar button:active{background:#1B5E20;transform:scale(0.94)}
+#bottom-bar button:disabled{background:#bbb;transform:none}
+#step-desc{font-size:12px;color:#444;text-align:center;max-width:240px;line-height:1.3}
+
+/* Подсказка */
+#hint{position:fixed;top:45px;left:50%;transform:translateX(-50%);z-index:100;background:rgba(0,0,0,0.75);color:#fff;padding:5px 12px;border-radius:12px;font-size:11px;pointer-events:none;transition:opacity 1s}
+
+/* Новая деталь подсветка */
+@keyframes glow{0%,100%{filter:brightness(1)}50%{filter:brightness(1.6) drop-shadow(0 0 8px #FFD700)}}
+.new-part{animation:glow 1.5s ease-in-out 3}
+</style>
+</head>
+<body>
+
+<div id="scene">
+  <div id="world"></div>
+</div>
+
+<div id="top-bar">
+  <h1>🧱 LEGO 60347 — Мини-кафе</h1>
+  <span class="badge" id="stepLabel">Шаг 1/48</span>
+</div>
+
+<div id="bottom-bar">
+  <button id="btnPrev" onclick="prevStep()">◀</button>
+  <span id="step-desc">Тёмно-серая плита 16×16</span>
+  <button id="btnNext" onclick="nextStep()">▶</button>
+</div>
+
+<div id="hint">👆 Води пальцем чтобы вращать | Своди/разводи для зума</div>
+
+<script>
+// ============ ЦВЕТА LEGO ============
+const COLORS = {
+  white: '#ffffff',
+  red: '#c91a09',
+  green: '#237841',
+  lime: '#a6c90e',
+  orange: '#fe8a18',
+  yellow: '#f5cd2f',
+  dkGray: '#6d6e6c',
+  ltGray: '#a0a5a9',
+  black: '#1b2a34',
+  transBlue: '#7ec8e3',
+  brown: '#7c5c41',
+  tan: '#dec69c',
+};
+
+const world = document.getElementById('world');
+const scene = document.getElementById('scene');
+let currentStep = 0;
+let allSteps = [];
+let rotX = -25, rotY = 35, zoom = 700;
+let isDragging = false, lastX = 0, lastY = 0;
+let lastDist = 0;
+
+// ============ СОЗДАНИЕ 3D ДЕТАЛИ ============
+function createPart(w, d, h, color, x, y, z, type = 'brick', angle = 0) {
+  const el = document.createElement('div');
+  el.className = 'part';
+  const S = 28; // масштаб
+
+  const bw = w * S - 2;
+  const bd = d * S - 2;
+  const bh = h * S - 1;
+
+  el.style.width = bw + 'px';
+  el.style.height = bh + 'px';
+  el.style.transform = `translate3d(${x*S-bw/2}px,${-y*S-bh/2}px,${z*S-bd/2}px)`;
+
+  // Грани
+  const faces = [
+    { w: bw, h: bh, t: `rotateY(0deg) translateZ(${bd/2}px)`, c: color },     // front
+    { w: bw, h: bh, t: `rotateY(180deg) translateZ(${bd/2}px)`, c: color },    // back
+    { w: bd, h: bh, t: `rotateY(90deg) translateZ(${bw/2}px)`, c: color },     // right
+    { w: bd, h: bh, t: `rotateY(-90deg) translateZ(${bw/2}px)`, c: color },    // left
+    { w: bw, h: bd, t: `rotateX(90deg) translateZ(${bh/2}px)`, c: color },     // top
+    { w: bw, h: bd, t: `rotateX(-90deg) translateZ(${bh/2}px)`, c: '#e0e0e0' },// bottom
+  ];
+
+  faces.forEach(f => {
+    const face = document.createElement('div');
+    face.className = 'face';
+    face.style.width = f.w + 'px';
+    face.style.height = f.h + 'px';
+    face.style.background = f.c;
+    face.style.transform = f.t;
+    el.appendChild(face);
+  });
+
+  // Шипы
+  if (type === 'brick' || type === 'plate') {
+    const studR = 5, studH = 4;
+    for (let i = 0; i < w; i++) {
+      for (let j = 0; j < d; j++) {
+        const stud = document.createElement('div');
+        stud.className = 'stud';
+        stud.style.width = studR * 2 + 'px';
+        stud.style.height = studR * 2 + 'px';
+        stud.style.background = color;
+        stud.style.transform = `translate3d(${(i-(w-1)/2)*S}px,${-bh/2-studH}px,${(j-(d-1)/2)*S}px) rotateX(90deg)`;
+        el.appendChild(stud);
+      }
+    }
+  }
+
+  // Скат
+  if (type === 'slope') {
+    el.querySelectorAll('.face').forEach(f => f.style.display = 'none');
+    // Только перед, низ, бока
+    const frontFace = document.createElement('div');
+    frontFace.className = 'face';
+    frontFace.style.width = bw + 'px';
+    frontFace.style.height = bh + 'px';
+    frontFace.style.background = color;
+    frontFace.style.transform = `rotateY(0deg) translateZ(${bd/2}px)`;
+    // Скашиваем верх
+    frontFace.style.clipPath = `polygon(0 100%, 100% 100%, 70% 0%, 30% 0%)`;
+    el.appendChild(frontFace);
+
+    const backFace = document.createElement('div');
+    backFace.className = 'face';
+    backFace.style.width = bw + 'px';
+    backFace.style.height = bh * 0.3 + 'px';
+    backFace.style.background = color;
+    backFace.style.transform = `rotateY(180deg) translateZ(${bd/2}px)`;
+    backFace.style.marginTop = bh * 0.7 + 'px';
+    el.appendChild(backFace);
+
+    ['left','right'].forEach((side,idx) => {
+      const sface = document.createElement('div');
+      sface.className = 'face';
+      sface.style.width = bd + 'px';
+      sface.style.height = bh + 'px';
+      sface.style.background = color;
+      sface.style.transform = `rotateY(${idx===0?-90:90}deg) translateZ(${bw/2}px)`;
+      sface.style.clipPath = `polygon(0 100%, 100% 100%, 100% ${idx===0?30:0}%, 0% ${idx===0?0:30}%)`;
+      el.appendChild(sface);
+    });
+
+    const topFace = document.createElement('div');
+    topFace.className = 'face';
+    topFace.style.width = bw * 0.4 + 'px';
+    topFace.style.height = bd + 'px';
+    topFace.style.background = color;
+    topFace.style.transform = `rotateX(90deg) translateZ(${bh/2}px)`;
+    topFace.style.marginLeft = bw * 0.3 + 'px';
+    el.appendChild(topFace);
+  }
+
+  el.dataset.step = currentStep;
+  return el;
+}
+
+function createPlate(w, d, color, x, y, z) {
+  return createPart(w, d, 0.35, color, x, y, z, 'plate');
+}
+
+function createTile(w, d, color, x, y, z) {
+  const el = document.createElement('div');
+  el.className = 'part';
+  const S = 28;
+  const bw = w * S - 2, bd = d * S - 2, bh = 6;
+  el.style.width = bw + 'px';
+  el.style.height = bh + 'px';
+  el.style.transform = `translate3d(${x*S-bw/2}px,${-y*S-bh/2}px,${z*S-bd/2}px)`;
+  ['front','back'].forEach((_,i)=>{
+    const f=document.createElement('div');f.className='face';
+    f.style.width=bw+'px';f.style.height=bh+'px';f.style.background=color;
+    f.style.transform=`rotateY(${i*180}deg) translateZ(${bd/2}px)`;el.appendChild(f);
+  });
+  ['right','left'].forEach((_,i)=>{
+    const f=document.createElement('div');f.className='face';
+    f.style.width=bd+'px';f.style.height=bh+'px';f.style.background=color;
+    f.style.transform=`rotateY(${i===0?90:-90}deg) translateZ(${bw/2}px)`;el.appendChild(f);
+  });
+  el.dataset.step = currentStep;
+  return el;
+}
+
+function createPanel(w, h, color, x, y, z) {
+  const el = document.createElement('div');
+  el.className = 'part';
+  const S = 28;
+  const bw = w * S - 2, bd = 6, bh = h * S - 2;
+  el.style.width = bw + 'px';
+  el.style.height = bh + 'px';
+  el.style.transform = `translate3d(${x*S-bw/2}px,${-y*S-bh/2}px,${z*S-bd/2}px)`;
+  ['front','back'].forEach((_,i)=>{
+    const f=document.createElement('div');f.className='face';
+    f.style.width=bw+'px';f.style.height=bh+'px';f.style.background=color;
+    f.style.transform=`rotateY(${i*180}deg) translateZ(${bd/2}px)`;el.appendChild(f);
+  });
+  el.dataset.step = currentStep;
+  return el;
+}
+
+function createSphere(r, color, x, y, z) {
+  const el = document.createElement('div');
+  el.className = 'part';
+  const S = 28;
+  const size = r * S * 2;
+  el.style.width = size + 'px';
+  el.style.height = size + 'px';
+  el.style.borderRadius = '50%';
+  el.style.background = `radial-gradient(circle at 35% 35%, ${color}, ${color}dd)`;
+  el.style.transform = `translate3d(${x*S-size/2}px,${-y*S-size/2}px,${z*S-size/2}px)`;
+  el.dataset.step = currentStep;
+  return el;
+}
+
+function createCylinder(r, ht, color, x, y, z) {
+  const el = document.createElement('div');
+  el.className = 'part';
+  const S = 28;
+  const w = r * S * 2, h = ht * S;
+  el.style.width = w + 'px';
+  el.style.height = h + 'px';
+  el.style.borderRadius = w/2 + 'px';
+  el.style.background = `linear-gradient(90deg, ${color}dd, ${color}, ${color}dd)`;
+  el.style.transform = `translate3d(${x*S-w/2}px,${-y*S-h/2}px,${z*S-w/2}px)`;
+  el.dataset.step = currentStep;
+  return el;
+}
+
+// ============ ОПРЕДЕЛЕНИЕ ШАГОВ ============
+function defineSteps() {
+  const steps = [];
+
+  // МОДУЛЬ A — ОСНОВАНИЕ
+  steps.push({
+    desc: 'Тёмно-серая плита 16×16 (69958) — основание',
+    focus: {x:0,y:0,z:0},
+    parts: [()=>createPlate(16,16,COLORS.dkGray,0,0,0)],
+  });
+  steps.push({
+    desc: 'Светло-серая плита 16×16 (91405) — терраса со сдвигом вперёд',
+    focus: {x:0,y:0.4,z:2},
+    parts: [()=>createPlate(16,16,COLORS.ltGray,0,0.3,2.2)],
+  });
+  steps.push({
+    desc: '2 тёмно-серые плитки 1×6 (6636) — укрепление снизу',
+    focus: {x:0,y:0.3,z:5.5},
+    parts: [()=>createTile(6,1,COLORS.dkGray,-3.5,0.2,5.8), ()=>createTile(6,1,COLORS.dkGray,3.5,0.2,5.8)],
+  });
+  steps.push({
+    desc: 'Белый кирпич 1×4×3 (49311) — задняя стена слева',
+    focus: {x:-4.5,y:1.5,z:-5.5},
+    parts: [()=>createPart(4,1,3,COLORS.white,-4.5,0.3,-5.5)],
+  });
+  steps.push({
+    desc: 'Белая панель 1×2×3 (35340) — задняя стена',
+    focus: {x:-2,y:1.5,z:-5.5},
+    parts: [()=>createPanel(2,3,COLORS.white,-2,0.3,-5.5)],
+  });
+  steps.push({
+    desc: 'Белый кирпич 1×4×3 (49311) — центр слева',
+    focus: {x:0,y:1.5,z:-5.5},
+    parts: [()=>createPart(4,1,3,COLORS.white,0,0.3,-5.5)],
+  });
+  steps.push({
+    desc: 'Белая рама 1×6×6 (42205) + голубое окно',
+    focus: {x:3,y:3,z:-5.5},
+    parts: [()=>createPart(6,1,6,COLORS.white,3,0.3,-5.5), ()=>createPart(4,1,4.5,COLORS.transBlue,3,0.8,-5.3)],
+  });
+  steps.push({
+    desc: 'Белый кирпич 1×4×3 (49311) — центр справа',
+    focus: {x:5.5,y:1.5,z:-5.5},
+    parts: [()=>createPart(4,1,3,COLORS.white,5.5,0.3,-5.5)],
+  });
+  steps.push({
+    desc: 'Белый кирпич 1×4×3 + панель 1×2×3 — правый край',
+    focus: {x:7.5,y:1.5,z:-5.5},
+    parts: [()=>createPart(4,1,3,COLORS.white,7.5,0.3,-5.5), ()=>createPanel(2,3,COLORS.white,5.5,0.3,-5.5)],
+  });
+  steps.push({
+    desc: '3 белые плиты 2×8 (3034) — скрепляем стену сверху',
+    focus: {x:0,y:3.5,z:-5.5},
+    parts: [()=>createPlate(8,2,COLORS.white,-5.5,3.3,-5.5), ()=>createPlate(8,2,COLORS.white,0,3.3,-5.5), ()=>createPlate(8,2,COLORS.white,5.5,3.3,-5.5)],
+  });
+  steps.push({
+    desc: 'Белый кирпич 2×10 (3006) — левая боковая стена',
+    focus: {x:-7,y:0.5,z:0},
+    parts: [()=>createPart(10,2,1,COLORS.white,-7,0.3,0)],
+  });
+  steps.push({
+    desc: 'Белый кирпич 1×12 (6112) — левая стена сверху',
+    focus: {x:-6.5,y:1.5,z:-1},
+    parts: [()=>createPart(12,1,1,COLORS.white,-6.5,1.3,-1)],
+  });
+  steps.push({
+    desc: 'Белая панель 1×2×3 (35340) — левая стена спереди',
+    focus: {x:-7.5,y:1.5,z:4.5},
+    parts: [()=>createPanel(2,3,COLORS.white,-7.5,0.3,4.5)],
+  });
+  steps.push({
+    desc: 'Белый кирпич 2×10 (3006) — правая боковая стена',
+    focus: {x:7,y:0.5,z:0},
+    parts: [()=>createPart(10,2,1,COLORS.white,7,0.3,0)],
+  });
+  steps.push({
+    desc: 'Белый кирпич 1×12 (6112) — правая стена сверху',
+    focus: {x:6.5,y:1.5,z:-1},
+    parts: [()=>createPart(12,1,1,COLORS.white,6.5,1.3,-1)],
+  });
+  steps.push({
+    desc: 'Белая панель 1×2×3 (35340) — правая стена спереди',
+    focus: {x:7.5,y:1.5,z:4.5},
+    parts: [()=>createPanel(2,3,COLORS.white,7.5,0.3,4.5)],
+  });
+  steps.push({
+    desc: '2 белые плиты 1×4 (3710) — скрепляем углы',
+    focus: {x:0,y:2.2,z:-5.5},
+    parts: [()=>createPlate(4,1,COLORS.white,-6.5,2.2,-5.8), ()=>createPlate(4,1,COLORS.white,6.5,2.2,-5.8)],
+  });
+
+  // МОДУЛЬ B — ПРИЛАВОК
+  steps.push({
+    desc: 'Зелёный кирпич 2×4 (3001) — прилавок (1/4)',
+    focus: {x:-4,y:0.8,z:2},
+    parts: [()=>createPart(4,2,1,COLORS.green,-4,0.5,2)],
+  });
+  steps.push({
+    desc: 'Зелёный кирпич 2×4 (3001) — прилавок (2/4)',
+    focus: {x:-1,y:0.8,z:2},
+    parts: [()=>createPart(4,2,1,COLORS.green,-1,0.5,2)],
+  });
+  steps.push({
+    desc: 'Зелёный кирпич 2×4 (3001) — прилавок (3/4)',
+    focus: {x:2,y:0.8,z:2},
+    parts: [()=>createPart(4,2,1,COLORS.green,2,0.5,2)],
+  });
+  steps.push({
+    desc: 'Зелёный кирпич 2×4 (3001) — прилавок (4/4)',
+    focus: {x:5,y:0.8,z:2},
+    parts: [()=>createPart(4,2,1,COLORS.green,5,0.5,2)],
+  });
+  steps.push({
+    desc: '2 оранжевых кирпича 2×4 (3001) — цветной акцент',
+    focus: {x:0,y:0.8,z:0.5},
+    parts: [()=>createPart(4,2,1,COLORS.orange,-1.5,0.5,0.5), ()=>createPart(4,2,1,COLORS.orange,1.5,0.5,0.5)],
+  });
+  steps.push({
+    desc: '2 зелёных держателя 1×2×3 (3245) — по бокам',
+    focus: {x:0,y:1.8,z:1},
+    parts: [()=>createPart(1,2,3,COLORS.green,-5.5,0.5,1), ()=>createPart(1,2,3,COLORS.green,5.5,0.5,1)],
+  });
+  steps.push({
+    desc: 'Голубая панель 1×6×5 (59349) — витрина слева',
+    focus: {x:-1.5,y:3,z:1},
+    parts: [()=>createPanel(6,5,COLORS.transBlue,-1.5,1.3,1)],
+  });
+  steps.push({
+    desc: 'Ещё 2 голубые панели — спереди справа и сзади',
+    focus: {x:1.5,y:3,z:0},
+    parts: [()=>createPanel(6,5,COLORS.transBlue,1.5,1.3,1), ()=>createPanel(6,5,COLORS.transBlue,0,1.3,-1)],
+  });
+  steps.push({
+    desc: 'Продукты: яблоки, бананы, круассаны',
+    focus: {x:-1,y:2,z:0},
+    parts: [()=>createSphere(0.18,COLORS.red,-2,2,0),()=>createSphere(0.18,COLORS.red,-1.5,2,0),()=>createSphere(0.15,COLORS.green,-1,2,0),()=>createSphere(0.15,COLORS.yellow,-0.5,2,0.1),()=>createSphere(0.15,COLORS.yellow,0,2,0.1)],
+  });
+  steps.push({
+    desc: 'Продукты: багеты и морковки',
+    focus: {x:1,y:2,z:0},
+    parts: [()=>createCylinder(0.1,0.6,COLORS.brown,0.5,1.8,0),()=>createCylinder(0.1,0.6,COLORS.tan,1,1.8,0),()=>createCylinder(0.08,0.5,COLORS.orange,1.5,1.9,0),()=>createCylinder(0.08,0.5,COLORS.orange,2,1.9,0)],
+  });
+  steps.push({
+    desc: 'Продукты: тыквы и рыбы',
+    focus: {x:2.5,y:2,z:0},
+    parts: [()=>createSphere(0.2,COLORS.orange,2.5,2,0),()=>createSphere(0.2,COLORS.orange,3,2,0),()=>createCylinder(0.12,0.5,COLORS.ltGray,3.5,1.9,0),()=>createCylinder(0.12,0.5,COLORS.ltGray,4,1.9,0)],
+  });
+  steps.push({
+    desc: 'Светло-серая плита 8×16 (92438) — столешница',
+    focus: {x:0,y:1.6,z:0.5},
+    parts: [()=>createPlate(16,8,COLORS.ltGray,0,1.5,0.5)],
+  });
+  steps.push({
+    desc: 'Касса (белый скат) + 2 зелёные корзины (61780)',
+    focus: {x:-2,y:2.3,z:2.2},
+    parts: [()=>{const e=createPart(2,2,1,COLORS.white,-3.5,2,2.2,'slope');return e;},()=>createPart(2,2,1,COLORS.green,-1,2,2.5),()=>createPart(2,2,1,COLORS.green,1.5,2,2.5)],
+  });
+  steps.push({
+    desc: '3 бутылки + монитор (белый тайл)',
+    focus: {x:4,y:2.5,z:2.2},
+    parts: [()=>createCylinder(0.14,0.7,COLORS.transBlue,3.5,2.3,2.5),()=>createCylinder(0.14,0.7,COLORS.transBlue,4,2.3,2.5),()=>createCylinder(0.14,0.7,COLORS.transBlue,4.5,2.3,2.5),()=>createTile(2,2,COLORS.transBlue,5.5,2,2.5)],
+  });
+
+  // МОДУЛЬ C — НАВЕС И ДЕКОР
+  steps.push({
+    desc: '2 лаймовых кирпича 1×1×3 (14716) — левая колонна',
+    focus: {x:-5,y:2,z:4},
+    parts: [()=>createPart(1,1,3,COLORS.lime,-5,0.3,4),()=>createPart(1,1,3,COLORS.lime,-5,2.6,4)],
+  });
+  steps.push({
+    desc: '2 лаймовых кирпича 1×1×3 (14716) — правая колонна',
+    focus: {x:5,y:2,z:4},
+    parts: [()=>createPart(1,1,3,COLORS.lime,5,0.3,4),()=>createPart(1,1,3,COLORS.lime,5,2.6,4)],
+  });
+  steps.push({
+    desc: '2 лаймовые арки 1×3×2 (18653) — сверху колонн',
+    focus: {x:0,y:5,z:4},
+    parts: [()=>{const e=createPart(3,1,2,COLORS.lime,-5,4.8,4,'slope');return e;},()=>{const e=createPart(3,1,2,COLORS.lime,5,4.8,4,'slope');return e;}],
+  });
+  steps.push({
+    desc: 'Балки 5L (32316): 2 чёрные + 2 жёлтые',
+    focus: {x:0,y:5.3,z:0},
+    parts: [()=>createPart(5,1,0.5,COLORS.black,-2.5,5.3,1),()=>createPart(5,1,0.5,COLORS.black,2.5,5.3,1),()=>createPart(5,1,0.5,COLORS.yellow,-2.5,5.3,-2.5),()=>createPart(5,1,0.5,COLORS.yellow,2.5,5.3,-2.5)],
+  });
+  steps.push({
+    desc: '3 зелёных ската 2×4 45° (3037) — левая часть крыши',
+    focus: {x:-3,y:6.2,z:2.2},
+    parts: [()=>{const e=createPart(4,2,2,COLORS.green,-5.5,5.5,2.2,'slope');return e;},()=>{const e=createPart(4,2,2,COLORS.green,-2.5,5.5,2.2,'slope');return e;},()=>{const e=createPart(4,2,2,COLORS.green,0.5,5.5,2.2,'slope');return e;}],
+  });
+  steps.push({
+    desc: 'Ещё 2 ската + 1 скат 2×2 — правая часть',
+    focus: {x:3.5,y:6.2,z:2.2},
+    parts: [()=>{const e=createPart(4,2,2,COLORS.green,3.5,5.5,2.2,'slope');return e;},()=>{const e=createPart(4,2,2,COLORS.green,6.5,5.5,2.2,'slope');return e;},()=>{const e=createPart(2,2,1,COLORS.green,8,5.5,2.2,'slope');return e;}],
+  });
+  steps.push({
+    desc: 'Зелёные тайлы 1×8 ×5 + тайлы 2×2 ×4 — верх',
+    focus: {x:0,y:6.8,z:2.2},
+    parts: [()=>createTile(8,1,COLORS.green,-5,6.5,2.2),()=>createTile(8,1,COLORS.green,-2,6.5,2.2),()=>createTile(8,1,COLORS.green,1,6.5,2.2),()=>createTile(8,1,COLORS.green,4,6.5,2.2),()=>createTile(8,1,COLORS.green,7,6.5,2.2),()=>createTile(2,2,COLORS.green,-3,6.4,1),()=>createTile(2,2,COLORS.green,3,6.4,1),()=>createTile(2,2,COLORS.green,-3,6.4,3.5),()=>createTile(2,2,COLORS.green,3,6.4,3.5)],
+  });
+  steps.push({
+    desc: '2 голубые двери 1×3×6 (80683) — в раму',
+    focus: {x:2.5,y:3,z:-5},
+    parts: [()=>createPanel(3,6,COLORS.transBlue,1.5,0.4,-5.2),()=>createPanel(3,6,COLORS.transBlue,3.5,0.4,-5.2)],
+  });
+  steps.push({
+    desc: 'Голубая панель 1×2×1 (26169) — окошко выдачи',
+    focus: {x:6,y:1.5,z:-5},
+    parts: [()=>createPanel(1,2,COLORS.transBlue,6,1.8,-5.2)],
+  });
+  steps.push({
+    desc: 'Столик: ножки + белая столешница',
+    focus: {x:3,y:1.5,z:5.5},
+    parts: [()=>createPart(1,1,2,COLORS.brown,2.2,0.2,4.5),()=>createPart(1,1,2,COLORS.brown,2.2,0.2,6.5),()=>createPart(1,1,2,COLORS.brown,4.2,0.2,4.5),()=>createPart(1,1,2,COLORS.brown,4.2,0.2,6.5),()=>createTile(3,2,COLORS.white,3.2,1.4,5.5)],
+  });
+  steps.push({
+    desc: '2 красных стула',
+    focus: {x:3,y:1,z:5},
+    parts: [()=>createPlate(3,1,COLORS.red,1,0.9,5),()=>createPlate(1,2,COLORS.red,0.2,1,5),()=>createPlate(3,1,COLORS.red,5.5,0.9,5),()=>createPlate(1,2,COLORS.red,4.7,1,5)],
+  });
+  steps.push({
+    desc: 'Зонтик: красная ось + оранжевый конус',
+    focus: {x:-2.5,y:3,z:5.5},
+    parts: [()=>createCylinder(0.12,3,COLORS.red,-2.5,1.5,5.5),()=>{const e=document.createElement('div');e.className='part';const S=28;e.style.width='60px';e.style.height='30px';e.style.borderRadius='50%';e.style.background=COLORS.orange;e.style.transform=`translate3d(${-2.5*S-30}px,${-2.5*S-15}px,${5.5*S-30}px)`;e.dataset.step=currentStep;return e;}],
+  });
+  steps.push({
+    desc: '2 зелёных куста (4727) — у входа',
+    focus: {x:-6.5,y:0.6,z:5.5},
+    parts: [()=>createSphere(0.7,COLORS.green,-6.5,0,5),()=>createSphere(0.7,COLORS.green,-6.5,0,6.5)],
+  });
+  steps.push({
+    desc: '2 цветка (32606): оранжевый и розовый',
+    focus: {x:0,y:5.5,z:5.5},
+    parts: [()=>createSphere(0.25,COLORS.orange,-5,5.5,5.5),()=>createSphere(0.25,COLORS.red,5,5.5,5.5)],
+  });
+  steps.push({
+    desc: 'Знак парковки на антенне',
+    focus: {x:-7,y:2,z:2},
+    parts: [()=>createCylinder(0.1,3,COLORS.ltGray,-7,0,2),()=>createTile(2,2,COLORS.white,-7,2.6,2)],
+  });
+  steps.push({
+    desc: 'Оранжевая тележка (49649) с колёсами',
+    focus: {x:-3.5,y:0.4,z:7.5},
+    parts: [()=>createPlate(3,2,COLORS.orange,-3.5,0.3,7.5),()=>createCylinder(0.28,0.15,COLORS.black,-4.5,0.2,7),()=>createCylinder(0.28,0.15,COLORS.black,-2.5,0.2,7),()=>createCylinder(0.28,0.15,COLORS.black,-4.5,0.2,8.3),()=>createCylinder(0.28,0.15,COLORS.black,-2.5,0.2,8.3)],
+  });
+  steps.push({
+    desc: '🎉 2 красных ведра (95343) — ГОТОВО!',
+    focus: {x:6,y:0.4,z:3.5},
+    parts: [()=>createCylinder(0.28,0.6,COLORS.red,5.5,0.3,3.2),()=>createCylinder(0.28,0.6,COLORS.red,6.5,0.3,3.2)],
+  });
+
+  return steps;
+}
+
+// ============ ЛОГИКА ============
+function updateWorld() {
+  world.innerHTML = '';
+  for (let i = 0; i <= currentStep; i++) {
+    allSteps[i].parts.forEach(fn => {
+      const el = fn();
+      if (i === currentStep) el.classList.add('new-part');
+      world.appendChild(el);
+    });
+  }
+
+  // Обновляем UI
+  document.getElementById('stepLabel').textContent = `Шаг ${currentStep+1}/${allSteps.length}`;
+  document.getElementById('step-desc').textContent = allSteps[currentStep].desc;
+  document.getElementById('btnPrev').disabled = (currentStep === 0);
+  document.getElementById('btnNext').textContent = currentStep === allSteps.length-1 ? '🎉' : '▶';
+}
+
+function setView() {
+  const t = allSteps[currentStep].focus;
+  world.style.transform = `translate(-50%,-50%) rotateX(${rotX}deg) rotateY(${rotY}deg) scale(${700/zoom}) translate3d(${-t.x*28}px,${t.y*28}px,${-t.z*28}px)`;
+}
+
+window.nextStep = function() {
+  if (currentStep < allSteps.length - 1) {
+    currentStep++;
+    world.classList.add('instant');
+    updateWorld();
+    setView();
+    setTimeout(() => world.classList.remove('instant'), 50);
+  }
+};
+window.prevStep = function() {
+  if (currentStep > 0) {
+    currentStep--;
+    world.classList.add('instant');
+    updateWorld();
+    setView();
+    setTimeout(() => world.classList.remove('instant'), 50);
+  }
+};
+
+// ============ УПРАВЛЕНИЕ ============
+scene.addEventListener('pointerdown', (e) => {
+  isDragging = true;
+  lastX = e.clientX;
+  lastY = e.clientY;
+  if (e.touches && e.touches.length === 2) {
+    lastDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+  }
+});
+window.addEventListener('pointermove', (e) => {
+  if (!isDragging) return;
+  if (e.touches && e.touches.length === 2) {
+    const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    zoom += (lastDist - dist) * 0.5;
+    zoom = Math.max(300, Math.min(1500, zoom));
+    lastDist = dist;
+  } else {
+    const dx = e.clientX - lastX;
+    const dy = e.clientY - lastY;
+    rotY += dx * 0.4;
+    rotX -= dy * 0.4;
+    rotX = Math.max(-60, Math.min(60, rotX));
+  }
+  lastX = e.clientX;
+  lastY = e.clientY;
+  setView();
+});
+window.addEventListener('pointerup', () => { isDragging = false; });
+
+// Свайпы для шагов
+let touchStartX = 0;
+scene.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 1) touchStartX = e.touches[0].clientX;
+});
+scene.addEventListener('touchend', (e) => {
+  if (e.touches.length === 0 && Math.abs(e.changedTouches[0].clientX - touchStartX) > 60) {
+    if (e.changedTouches[0].clientX < touchStartX) nextStep();
+    else prevStep();
+  }
+});
+
+// Колёсико мыши
+scene.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  zoom += e.deltaY * 0.5;
+  zoom = Math.max(300, Math.min(1500, zoom));
+  setView();
+}, {passive: false});
+
+// Клавиши
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight') nextStep();
+  if (e.key === 'ArrowLeft') prevStep();
+});
+
+// Скрыть подсказку
+setTimeout(() => {
+  document.getElementById('hint').style.opacity = '0';
+  setTimeout(() => document.getElementById('hint').style.display = 'none', 1000);
+}, 6000);
+
+// ============ ЗАПУСК ============
+allSteps = defineSteps();
+currentStep = 0;
+updateWorld();
+setView();
+</script>
+</body>
+</html>
